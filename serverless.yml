@@ -1,0 +1,183 @@
+# Welcome to Serverless!
+#
+# This file is the main config file for your service.
+# It's very minimal at this point and uses default values.
+# You can always add more config options for more control.
+# Just uncomment any of them to get that config option.
+#
+# For full config options, check the docs:
+#    docs.serverless.com
+#
+# Happy Coding!
+
+service: medialive-api
+custom:
+  pythonRequirements:
+    dockerizePip: true
+    fileName: ./requirements.txt
+    slim: true
+  prune:
+    automatic: true
+    number: 3
+  corsStatements:
+    origin: '*' # <-- Specify allowed origin. If required, allowed origin can be set to point from webapp deployment URL.
+    headers: # <-- Specify allowed headers
+      - Content-Type
+      - X-Amz-Date
+      - Authorization
+      - X-Api-Key
+      - X-Amz-Security-Token
+      - X-Amz-User-Agent
+      - Access-Control-Allow-Headers
+      - Access-Control-Allow-Origin
+    allowCredentials: false
+  mediaStoreStatements:
+    Effect: Allow
+    Action:
+      - mediastore:*
+    Resource: "*"
+  lambdaBasicStatements:
+    Effect: Allow
+    Action: # Gives permission to Lambda in a specific region
+      - logs:CreateLogGroup
+      - logs:CreateLogStream
+      - logs:PutLogEvents
+    Resource: "*"
+  mediaLiveStatements:
+    Effect: Allow
+    Action:
+      - medialive:*
+    Resource: "*"
+  ssmStatements:
+    Effect: Allow
+    Action:
+      - ssm:GetParameter
+      - ssm:GetParameters
+      - ssm:PutParameter
+    Resource: "*"
+  iamStatements:
+    Effect: Allow
+    Action: # Gives permission to IAM role in a specific region
+      - iam:PassRole
+      - iam:GetRole
+    Resource: ${file(./src/config.json):ROLEARN}
+provider:
+  name: aws
+  runtime: python3.8
+  environment:
+    REGION: ${file(./src/config.json):REGION}
+    STAGE: ${file(./src/config.json):STAGE}
+    CONTAINER: ${file(./src/config.json):CONTAINER}
+    MLROLE: ${file(./src/config.json):MLROLE}
+    SECURITYGROUP: ${file(./src/config.json):SECURITYGROUP}
+  stage: ${file(./src/config.json):STAGE}
+  region: ${file(./src/config.json):REGION}
+  iamRoleStatements:
+    - ${self:custom.mediaLiveStatements}
+    - ${self:custom.mediaStoreStatements}
+    - ${self:custom.lambdaBasicStatements}
+    - ${self:custom.iamStatements}
+    - ${self:custom.ssmStatements}
+package:
+  exclude:
+    - ./**
+  include:
+    - ./src/**
+    - ./requirements.txt
+    - ./src/config.json
+    - ./src/encoder.json
+functions:
+  createMediaLive: # Create Medialive
+    handler: src/createMediaLive/lambda_function.lambda_handler
+    name: ${self:provider.stage}-createLiveStreaming
+    description: create mediaLiveStreaming Lambda handler
+    timeout: 30
+    events:
+      - http:
+          path: livesession
+          method: post
+          cors: ${self:custom.corsStatements}
+          response:
+            headers:
+              Content-Type: "'application/json'"
+            template: $input.path('$.body')
+          integration: lambda
+  startMediaLive: # Start Medialive
+    handler: src/startMediaLive/lambda_function.lambda_handler
+    name: ${self:provider.stage}-startLiveStreaming
+    description: start mediaLiveStreaming Lambda handler
+    timeout: 30
+    events:
+      - http:
+          path: livesession/start
+          method: post
+          cors: ${self:custom.corsStatements}
+          response:
+            headers:
+              Content-Type: "'application/json'"
+            template: $input.path('$.body')
+          integration: lambda
+  stopMediaLive: # Stop Medialive
+    handler: src/stopMediaLive/lambda_function.lambda_handler
+    name: ${self:provider.stage}-stopLiveStreaming
+    description: stop mediaLiveStreaming Lambda handler
+    timeout: 30
+    events:
+      - http:
+          path: livesession/stop
+          method: post
+          cors: ${self:custom.corsStatements}
+          response:
+            headers:
+              Content-Type: "'application/json'"
+            template: $input.path('$.body')
+          integration: lambda
+  removeMediaLive: # Remove Medialive
+    handler: src/removeMediaLive/lambda_function.lambda_handler
+    name: ${self:provider.stage}-removeLiveStreaming
+    description: remove mediaLiveStreaming Lambda handler
+    timeout: 30
+    events:
+      - http:
+          path: livesession/remove
+          method: post
+          cors: ${self:custom.corsStatements}
+          response:
+            headers:
+              Content-Type: "'application/json'"
+            template: $input.path('$.body')
+          integration: lambda
+  getStatus: # Get status of Medialive channel
+    handler: src/getStatus/lambda_function.lambda_handler
+    name: ${self:provider.stage}-getStatus
+    description: get status Lambda handler
+    timeout: 30
+    events:
+      - http:
+          path: status
+          method: post
+          cors: ${self:custom.corsStatements}
+          response:
+            headers:
+              Content-Type: "'application/json'"
+            template: $input.path('$.body')
+          integration: lambda
+  listMediaLive: # Get list of Medialive channel
+    handler: src/listMediaLive/lambda_function.lambda_handler
+    name: ${self:provider.stage}-listMediaLive
+    description: get list of medialive channel Lambda handler
+    timeout: 30
+    events:
+      - http:
+          path: list
+          method: post
+          cors: ${self:custom.corsStatements}
+          response:
+            headers:
+              Content-Type: "'application/json'"
+            template: $input.path('$.body')
+          integration: lambda
+plugins:
+  - serverless-python-requirements
+  - serverless-pseudo-parameters
+  - serverless-prune-plugin
